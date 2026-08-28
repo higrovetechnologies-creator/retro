@@ -82,7 +82,7 @@ export default function Header() {
             className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center sm:hidden"
           >
             <img
-              src="public/Retro-logo.png"
+              src="Retro-logo.png"
               alt="Retro Clothing logo"
               className="h-9 w-9 object-contain"
               draggable={false}

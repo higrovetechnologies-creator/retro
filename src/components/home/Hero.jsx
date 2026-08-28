@@ -33,22 +33,22 @@ export default function Hero() {
   }, [scrollYProgress]);
 
   /* ============================================================
-     SCROLL CONTROLLED VIDEO
-     
-     VIDEO BEHAVES LIKE A KEYFRAME ANIMATION
+     PERFORMANCE OPTIMIZED SCROLL VIDEO
 
-     Scroll 0%   -> Video 0%
-     Scroll 25%  -> Video 25%
-     Scroll 50%  -> Video 50%
-     Scroll 75%  -> Video 75%
-     Scroll 100% -> Video 100%
+     Scroll controls video timeline like keyframes.
+
+     0%   -> video 0%
+     25%  -> video 25%
+     50%  -> video 50%
+     75%  -> video 75%
+     100% -> video 100%
 
      NO AUTOPLAY
      NO LOOP
-     NO INTERPOLATION DELAY
+     NO SMOOTH INTERPOLATION DELAY
 
-     The video position follows scroll directly.
-     ============================================================ */
+     Small unnecessary seeks are skipped to reduce lag.
+  ============================================================ */
 
   useEffect(() => {
     const video = videoRef.current;
@@ -59,11 +59,13 @@ export default function Hero() {
     let ready = false;
 
     let targetProgress = 0;
+    let lastRenderedTime = -1;
+
     let rafId = null;
 
     /* ------------------------------------------------------------
-       Get video duration
-       ------------------------------------------------------------ */
+       Initialize video
+    ------------------------------------------------------------ */
 
     const initializeVideo = () => {
       if (
@@ -76,19 +78,26 @@ export default function Hero() {
       duration = video.duration;
       ready = true;
 
-      targetProgress =
-        scrollYProgress.get();
+      targetProgress = scrollYProgress.get();
 
-      updateVideoFrame();
+      const initialTime =
+        targetProgress *
+        Math.max(0, duration - 0.05);
+
+      try {
+        video.currentTime = initialTime;
+        lastRenderedTime = initialTime;
+      } catch {
+        // Ignore seek errors
+      }
     };
 
     /* ------------------------------------------------------------
-       Update target scroll progress
-       
-       IMPORTANT:
-       We only store the progress here.
-       We don't seek immediately.
-       ------------------------------------------------------------ */
+       Store scroll progress
+
+       We DON'T directly seek here.
+       requestAnimationFrame handles the actual rendering.
+    ------------------------------------------------------------ */
 
     const handleScroll = (progress) => {
       targetProgress = Math.min(
@@ -98,48 +107,51 @@ export default function Hero() {
     };
 
     /* ------------------------------------------------------------
-       Video frame renderer
-       
-       requestAnimationFrame keeps all seeking
-       synchronized with the browser's rendering cycle.
-       ------------------------------------------------------------ */
+       Render video frame
 
-    const updateVideoFrame = () => {
+       Browser rendering cycle synchronization.
+    ------------------------------------------------------------ */
+
+    const renderVideo = () => {
       if (
         ready &&
         duration > 0 &&
         Number.isFinite(duration)
       ) {
-        const newTime =
+        const targetTime =
           targetProgress *
-          Math.max(0, duration - 0.01);
+          Math.max(0, duration - 0.05);
 
         /*
-         * Only seek if the frame actually changed.
+         * 0.033 sec ≈ 30 FPS threshold.
+         *
+         * If the requested frame change is smaller,
+         * don't perform another expensive video seek.
          */
 
         if (
           Math.abs(
-            video.currentTime - newTime
-          ) > 0.003
+            targetTime - lastRenderedTime
+          ) >= 0.033
         ) {
           try {
-            video.currentTime = newTime;
+            video.currentTime = targetTime;
+            lastRenderedTime = targetTime;
           } catch {
-            // Ignore seek errors.
+            // Ignore seek errors
           }
         }
       }
 
       rafId =
         requestAnimationFrame(
-          updateVideoFrame
+          renderVideo
         );
     };
 
-    /* ------------------------------------------------------------
-       Video configuration
-       ------------------------------------------------------------ */
+    /* ============================================================
+       VIDEO CONFIGURATION
+    ============================================================ */
 
     video.pause();
 
@@ -147,6 +159,16 @@ export default function Hero() {
     video.loop = false;
     video.muted = true;
     video.playsInline = true;
+
+    video.setAttribute(
+      "playsinline",
+      ""
+    );
+
+    video.setAttribute(
+      "preload",
+      "auto"
+    );
 
     video.addEventListener(
       "loadedmetadata",
@@ -161,9 +183,9 @@ export default function Hero() {
       initializeVideo();
     }
 
-    /* ------------------------------------------------------------
-       Scroll listener
-       ------------------------------------------------------------ */
+    /* ============================================================
+       SCROLL LISTENER
+    ============================================================ */
 
     const unsubscribe =
       scrollYProgress.on(
@@ -171,18 +193,18 @@ export default function Hero() {
         handleScroll
       );
 
-    /* ------------------------------------------------------------
-       Start frame loop
-       ------------------------------------------------------------ */
+    /* ============================================================
+       START VIDEO RENDER LOOP
+    ============================================================ */
 
     rafId =
       requestAnimationFrame(
-        updateVideoFrame
+        renderVideo
       );
 
-    /* ------------------------------------------------------------
-       Cleanup
-       ------------------------------------------------------------ */
+    /* ============================================================
+       CLEANUP
+    ============================================================ */
 
     return () => {
       unsubscribe();
@@ -200,7 +222,7 @@ export default function Hero() {
 
   /* ============================================================
      RETRO
-     ============================================================ */
+  ============================================================ */
 
   const retroOpacity = useTransform(
     scrollYProgress,
@@ -222,7 +244,7 @@ export default function Hero() {
 
   /* ============================================================
      LUXURY
-     ============================================================ */
+  ============================================================ */
 
   const luxuryOpacity = useTransform(
     scrollYProgress,
@@ -244,7 +266,7 @@ export default function Hero() {
 
   /* ============================================================
      END IMAGE
-     ============================================================ */
+  ============================================================ */
 
   const endImageOpacity = useTransform(
     scrollYProgress,
@@ -266,7 +288,7 @@ export default function Hero() {
 
   /* ============================================================
      END IMAGE OVERLAY
-     ============================================================ */
+  ============================================================ */
 
   const endOverlayOpacity = useTransform(
     scrollYProgress,
@@ -276,7 +298,7 @@ export default function Hero() {
 
   /* ============================================================
      BACKGROUND OVERLAY
-     ============================================================ */
+  ============================================================ */
 
   const overlayOpacity = useTransform(
     scrollYProgress,
@@ -286,7 +308,7 @@ export default function Hero() {
 
   /* ============================================================
      GRAIN
-     ============================================================ */
+  ============================================================ */
 
   const grainOpacity = useTransform(
     scrollYProgress,
@@ -296,13 +318,14 @@ export default function Hero() {
 
   /* ============================================================
      SCROLL INDICATOR
-     ============================================================ */
+  ============================================================ */
 
-  const scrollIndicatorOpacity = useTransform(
-    scrollYProgress,
-    [0, 0.55, 0.82, 1],
-    [1, 1, 0.25, 0]
-  );
+  const scrollIndicatorOpacity =
+    useTransform(
+      scrollYProgress,
+      [0, 0.55, 0.82, 1],
+      [1, 1, 0.25, 0]
+    );
 
   return (
     <section
@@ -313,7 +336,6 @@ export default function Hero() {
         bg-ink
       "
     >
-
       {/* ======================================================
           STICKY HERO
       ======================================================= */}
@@ -331,10 +353,6 @@ export default function Hero() {
 
         {/* ====================================================
             SCROLL KEYFRAME VIDEO
-
-            NOT AUTOPLAY
-            NOT LOOP
-            SCROLL CONTROLS TIMELINE
         ===================================================== */}
 
         <video
@@ -345,11 +363,14 @@ export default function Hero() {
             h-full
             w-full
             object-cover
+            will-change-auto
           "
           src="/hero-video.mp4"
           muted
           playsInline
           preload="auto"
+          autoPlay={false}
+          loop={false}
           controls={false}
           aria-hidden="true"
         />
@@ -588,8 +609,7 @@ export default function Hero() {
 
         <motion.div
           style={{
-            opacity:
-              scrollIndicatorOpacity,
+            opacity: scrollIndicatorOpacity,
           }}
           className="
             absolute
